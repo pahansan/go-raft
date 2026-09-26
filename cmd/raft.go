@@ -55,13 +55,13 @@ type State struct {
 }
 
 var state = State{CurrentTerm: 0, VotedFor: -1}
-var role = Follower
+var Role = Follower
 var ID = -1
 var otherIDs = []int{}
 var otherHosts = []string{}
 var gotRPC = make(chan struct{}, 1)
 
-func health(c *gin.Context) {
+func status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
@@ -80,13 +80,14 @@ func requestVote(c *gin.Context) {
 	if req.Term > state.CurrentTerm {
 		state.CurrentTerm = req.Term
 		state.VotedFor = -1
-		role = Follower
+		printLog("Role " + RoleAsString(Role) + "->" + RoleAsString(Follower))
+		Role = Follower
 	}
 
 	if state.VotedFor == -1 || state.VotedFor == req.CandidateID {
 		state.VotedFor = req.CandidateID
 		c.JSON(http.StatusOK, VoteResponse{Term: state.CurrentTerm, VoteGranted: true})
-		fmt.Println("Voted for " + strconv.Itoa(state.VotedFor))
+		printLog("Voted for " + strconv.Itoa(state.VotedFor))
 		gotRPC <- struct{}{}
 		return
 	}
@@ -110,7 +111,8 @@ func appendEntries(c *gin.Context) {
 		state.CurrentTerm = req.Term
 	}
 
-	role = Follower
+	printLog("Role " + RoleAsString(Role) + "->" + RoleAsString(Follower))
+	Role = Follower
 
 	c.JSON(http.StatusOK, AppendEntriesResponse{Term: state.CurrentTerm, Success: true})
 	gotRPC <- struct{}{}
@@ -120,9 +122,25 @@ func electionTimeout() time.Duration {
 	return time.Duration((electionTimeoutFrom + rand.IntN(electionTimeoutTo-electionTimeoutFrom))) * time.Millisecond
 }
 
+func printLog(m string) {
+	fmt.Println("[Term: " + strconv.Itoa(state.CurrentTerm) + "] " + m)
+}
+
+func RoleAsString(Role int) string {
+	switch Role {
+	case Leader:
+		return "Leader"
+	case Follower:
+		return "Follower"
+	case Candidate:
+		return "Candidate"
+	}
+	return "nil"
+}
+
 func startElection() {
-	fmt.Println("Started election")
-	role = Candidate
+	printLog("Started election|Role " + RoleAsString(Role) + "->" + RoleAsString(Candidate))
+	Role = Candidate
 	state.CurrentTerm++
 	state.VotedFor = ID
 	body := VoteRequest{Term: state.CurrentTerm, CandidateID: ID}
@@ -160,7 +178,8 @@ func startElection() {
 	}
 	wg.Wait()
 	if votes > len(otherIDs)/2 {
-		role = Leader
+		printLog("Role " + RoleAsString(Role) + "->" + RoleAsString(Leader))
+		Role = Leader
 	}
 }
 
@@ -169,7 +188,7 @@ func electionLoop() {
 	for {
 		select {
 		case <-timer.C:
-			if role != Leader {
+			if Role != Leader {
 				startElection()
 			}
 			timer.Reset(electionTimeout())
@@ -179,37 +198,39 @@ func electionLoop() {
 	}
 }
 
+func sendHeartbeat() {
+	body := AppendEntriesRequest{Term: state.CurrentTerm, LeaderID: ID}
+	out, err := json.Marshal(body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	for i := range otherIDs {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			req, err := http.NewRequest("POST", "http://"+otherHosts[i]+"/append-entries", bytes.NewBuffer(out))
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			req = req.WithContext(context.Background())
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+		}(i)
+	}
+	wg.Wait()
+}
+
 func leaderLoop() {
 	for range time.Tick(heartbeatTick * time.Millisecond) {
-		if role != Leader {
-			continue
+		if Role == Leader {
+			sendHeartbeat()
 		}
-		body := AppendEntriesRequest{Term: state.CurrentTerm, LeaderID: ID}
-		out, err := json.Marshal(body)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		var wg sync.WaitGroup
-		for i := range otherIDs {
-			wg.Add(1)
-			go func(id int) {
-				defer wg.Done()
-				req, err := http.NewRequest("POST", "http://"+otherHosts[i]+"/append-entries", bytes.NewBuffer(out))
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				req = req.WithContext(context.Background())
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					return
-				}
-				defer resp.Body.Close()
-			}(i)
-		}
-		wg.Wait()
-
 	}
 }
 
@@ -238,8 +259,9 @@ func main() {
 	}
 	go electionLoop()
 	go leaderLoop()
-	router := gin.Default()
-	router.GET("/health", health)
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.GET("/status", status)
 	router.POST("/request-vote", requestVote)
 	router.POST("/append-entries", appendEntries)
 	router.Run(addr)
