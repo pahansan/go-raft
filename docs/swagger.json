@@ -1,0 +1,359 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "title": "Go Raft API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/add-entries": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "client"
+                ],
+                "summary": "Добавить записи в лог",
+                "parameters": [
+                    {
+                        "description": "Команда или пакет команд",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.AddEntriesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.AddEntriesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.AddEntriesResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/main.AddEntriesResponse"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "http://\u003cleader\u003e/add-entries"
+                            }
+                        }
+                    },
+                    "504": {
+                        "description": "Gateway Timeout",
+                        "schema": {
+                            "$ref": "#/definitions/main.AddEntriesResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/append-entries": {
+            "post": {
+                "description": "Лидер реплицирует записи лога и передаёт commitIndex, либо heartbeat.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "raft"
+                ],
+                "summary": "AppendEntries RPC",
+                "parameters": [
+                    {
+                        "description": "Запрос репликации",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.AppendEntriesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.AppendEntriesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Некорректный JSON",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/request-vote": {
+            "post": {
+                "description": "Кандидат запрашивает голос у узла.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "raft"
+                ],
+                "summary": "RequestVote RPC",
+                "parameters": [
+                    {
+                        "description": "Запрос голоса",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.VoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.VoteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Некорректный JSON",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/show-log": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "client"
+                ],
+                "summary": "Показать лог узла",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ShowLogResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/status": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Статус узла",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.StatusResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "main.AddEntriesRequest": {
+            "type": "object",
+            "properties": {
+                "command": {},
+                "entries": {
+                    "type": "array",
+                    "items": {}
+                }
+            }
+        },
+        "main.AddEntriesResponse": {
+            "type": "object",
+            "properties": {
+                "committed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "indexes": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "leaderHost": {
+                    "type": "string"
+                },
+                "leaderID": {
+                    "type": "integer"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.AppendEntriesRequest": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.LogEntry"
+                    }
+                },
+                "leaderCommit": {
+                    "type": "integer"
+                },
+                "leaderID": {
+                    "type": "integer"
+                },
+                "prevLogIndex": {
+                    "type": "integer"
+                },
+                "prevLogTerm": {
+                    "type": "integer"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.AppendEntriesResponse": {
+            "type": "object",
+            "properties": {
+                "success": {
+                    "type": "boolean"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.LogEntry": {
+            "type": "object",
+            "properties": {
+                "command": {},
+                "index": {
+                    "type": "integer"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.LogEntryView": {
+            "type": "object",
+            "properties": {
+                "applied": {
+                    "type": "boolean"
+                },
+                "command": {},
+                "committed": {
+                    "type": "boolean"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.ShowLogResponse": {
+            "type": "object",
+            "properties": {
+                "commitIndex": {
+                    "type": "integer"
+                },
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.LogEntryView"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "lastApplied": {
+                    "type": "integer"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.StatusResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.VoteRequest": {
+            "type": "object",
+            "properties": {
+                "candidateID": {
+                    "type": "integer"
+                },
+                "lastLogIndex": {
+                    "type": "integer"
+                },
+                "lastLogTerm": {
+                    "type": "integer"
+                },
+                "term": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.VoteResponse": {
+            "type": "object",
+            "properties": {
+                "term": {
+                    "type": "integer"
+                },
+                "voteGranted": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+}

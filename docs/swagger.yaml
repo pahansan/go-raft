@@ -1,0 +1,233 @@
+basePath: /
+definitions:
+  main.AddEntriesRequest:
+    properties:
+      command: {}
+      entries:
+        items: {}
+        type: array
+    type: object
+  main.AddEntriesResponse:
+    properties:
+      committed:
+        type: boolean
+      error:
+        type: string
+      indexes:
+        items:
+          type: integer
+        type: array
+      leaderHost:
+        type: string
+      leaderID:
+        type: integer
+      term:
+        type: integer
+    type: object
+  main.AppendEntriesRequest:
+    properties:
+      entries:
+        items:
+          $ref: '#/definitions/main.LogEntry'
+        type: array
+      leaderCommit:
+        type: integer
+      leaderID:
+        type: integer
+      prevLogIndex:
+        type: integer
+      prevLogTerm:
+        type: integer
+      term:
+        type: integer
+    type: object
+  main.AppendEntriesResponse:
+    properties:
+      success:
+        type: boolean
+      term:
+        type: integer
+    type: object
+  main.LogEntry:
+    properties:
+      command: {}
+      index:
+        type: integer
+      term:
+        type: integer
+    type: object
+  main.LogEntryView:
+    properties:
+      applied:
+        type: boolean
+      command: {}
+      committed:
+        type: boolean
+      index:
+        type: integer
+      term:
+        type: integer
+    type: object
+  main.ShowLogResponse:
+    properties:
+      commitIndex:
+        type: integer
+      entries:
+        items:
+          $ref: '#/definitions/main.LogEntryView'
+        type: array
+      id:
+        type: integer
+      lastApplied:
+        type: integer
+      role:
+        type: string
+      term:
+        type: integer
+    type: object
+  main.StatusResponse:
+    properties:
+      id:
+        type: integer
+      role:
+        type: string
+      term:
+        type: integer
+    type: object
+  main.VoteRequest:
+    properties:
+      candidateID:
+        type: integer
+      lastLogIndex:
+        type: integer
+      lastLogTerm:
+        type: integer
+      term:
+        type: integer
+    type: object
+  main.VoteResponse:
+    properties:
+      term:
+        type: integer
+      voteGranted:
+        type: boolean
+    type: object
+info:
+  contact: {}
+  title: Go Raft API
+  version: "1.0"
+paths:
+  /add-entries:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Команда или пакет команд
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.AddEntriesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.AddEntriesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.AddEntriesResponse'
+        "409":
+          description: Conflict
+          headers:
+            Location:
+              description: http://<leader>/add-entries
+              type: string
+          schema:
+            $ref: '#/definitions/main.AddEntriesResponse'
+        "504":
+          description: Gateway Timeout
+          schema:
+            $ref: '#/definitions/main.AddEntriesResponse'
+      summary: Добавить записи в лог
+      tags:
+      - client
+  /append-entries:
+    post:
+      consumes:
+      - application/json
+      description: Лидер реплицирует записи лога и передаёт commitIndex, либо heartbeat.
+      parameters:
+      - description: Запрос репликации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.AppendEntriesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.AppendEntriesResponse'
+        "400":
+          description: Некорректный JSON
+          schema:
+            type: string
+      summary: AppendEntries RPC
+      tags:
+      - raft
+  /request-vote:
+    post:
+      consumes:
+      - application/json
+      description: Кандидат запрашивает голос у узла.
+      parameters:
+      - description: Запрос голоса
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.VoteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.VoteResponse'
+        "400":
+          description: Некорректный JSON
+          schema:
+            type: string
+      summary: RequestVote RPC
+      tags:
+      - raft
+  /show-log:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.ShowLogResponse'
+      summary: Показать лог узла
+      tags:
+      - client
+  /status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.StatusResponse'
+      summary: Статус узла
+      tags:
+      - cluster
+swagger: "2.0"
